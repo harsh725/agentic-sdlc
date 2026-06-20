@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-sdlc"
+version = "0.1.0"
+description = "A specialized orchestrator agent for the software development lifecycle: deterministic gates, adversarial review, confidence-gated auto-merge, and caffeinated unattended runs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Harsh" }]
+keywords = ["agentic", "sdlc", "claude", "orchestrator", "ci-cd", "code-review"]
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# The live orchestrator needs the Claude Agent SDK (and the Claude Code CLI at
+# runtime). The deterministic spine and tests do not.
+orchestrator = ["claude-agent-sdk>=0.1.0"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+agentic-sdlc = "agentic_sdlc.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/harsh725/agentic-sdlc"
+Plan = "https://github.com/harsh725/agentic-sdlc/blob/main/docs/PLAN.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentic_sdlc"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# `class X(str, Enum)` is intentional (explicit pydantic/serialization behavior).
+ignore = ["UP042"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

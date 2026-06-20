@@ -1,0 +1,60 @@
+# Risk classifier rules (plan §7.1). Deterministic, versioned, fail-closed.
+# A match here forces HIGH risk -> mandatory human review (2 approvals via
+# CODEOWNERS) regardless of reviewer confidence. Unit-tested in
+# tests/test_risk_classifier.py. The orchestrator treats this file as gate
+# config: a self-healing agent may NOT edit it on the auto-merge path.
+version: 1
+
+# Path globs that always escalate. '**' matches across directories.
+high_paths:
+  auth:
+    - "**/auth/**"
+    - "**/login/**"
+    - "**/*session*"
+    - "**/oauth/**"
+  crypto:
+    - "**/crypto/**"
+    - "**/*signing*"
+    - "**/*encrypt*"
+  data_migration:
+    - "**/migrations/**"
+    - "**/*.sql"
+  infra:
+    - "infra/**"
+    - "**/*.tf"
+    - "**/*.tfvars"
+    - "**/k8s/**"
+    - "**/helm/**"
+    - "**/Dockerfile"
+  payments:
+    - "**/payment*/**"
+    - "**/billing/**"
+    - "**/checkout/**"
+  public_api:
+    - "**/*.proto"
+    - "**/openapi*.y*ml"
+    - "**/schema.graphql"
+  ci_and_gates:
+    - ".github/workflows/**"
+    - "gates/**"
+    - "risk_classifier/**"
+    - "CODEOWNERS"
+
+# Content regexes (matched against the diff text) that escalate even when the
+# path looks innocuous — defends against sensitive logic in unexpected files.
+high_content:
+  secrets_handling:
+    - "(password|secret|api[_-]?key|private[_-]?key|token)\\s*[:=]"
+  injection_sink:
+    - "\\b(eval|exec|os\\.system|subprocess\\.(call|run|Popen))\\b"
+    - "(SELECT|INSERT|UPDATE|DELETE)\\s+.*\\+\\s*"
+  permissive_cors:
+    - "Access-Control-Allow-Origin\\s*[:=]\\s*['\"]?\\*"
+  iam_policy:
+    - "\"Effect\"\\s*:\\s*\"Allow\".*\"Action\"\\s*:\\s*\"\\*\""
+
+# Watchlist for paths we cannot confidently call safe — fail closed to HIGH.
+ambiguous_paths:
+  - "**/*secret*"
+  - "**/*credential*"
+  - "**/.env*"

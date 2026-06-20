@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Agentic SDLC runtime artifacts
+runs/*/
+!runs/.gitkeep
+.agentic-sdlc/
+
+# Secrets — never commit
+.env
+.env.*
+*.pem
+*.key
+!*.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

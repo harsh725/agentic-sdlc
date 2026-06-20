@@ -1,0 +1,10 @@
+# Safety-critical paths always require human review (plan §6.5, §7.1).
+# These are deliberately on the escalate path — a self-healing agent may not turn
+# them green on the auto-merge path.
+
+/risk_classifier/         @harsh725
+/gates/                   @harsh725
+/.github/workflows/       @harsh725
+/CODEOWNERS               @harsh725
+/src/agentic_sdlc/risk_classifier.py   @harsh725
+/src/agentic_sdlc/confidence.py        @harsh725

@@ -1,0 +1,33 @@
+# Deterministic gates (plan §6.1). Each runs a real command; a non-zero exit on
+# a blocking gate stops the pipeline. Code is the oracle. This example targets a
+# Python stack (it also gates this very repo). Swap in the TS block below for a
+# TypeScript host project. Keep commands fast and hermetic.
+gates:
+  - name: format
+    cmd: "ruff format --check ."
+    blocking: true
+  - name: lint
+    cmd: "ruff check ."
+    blocking: true
+  - name: types
+    cmd: "python -c \"import compileall,sys; sys.exit(0 if compileall.compile_dir('src', quiet=1) else 1)\""
+    blocking: true
+  - name: secrets
+    cmd: "gitleaks detect --no-banner --redact --exit-code 1"
+    blocking: true
+  - name: unit
+    cmd: "pytest -q"
+    blocking: true
+
+# --- TypeScript host project (example) ---
+# gates:
+#   - name: format
+#     cmd: "prettier --check ."
+#   - name: lint
+#     cmd: "eslint ."
+#   - name: types
+#     cmd: "tsc --noEmit"
+#   - name: secrets
+#     cmd: "gitleaks detect --no-banner --redact --exit-code 1"
+#   - name: unit
+#     cmd: "vitest run --coverage"
