@@ -24,7 +24,6 @@ from agentic_sdlc.contracts import (
     Phase,
     Status,
     SubAgentResult,
-    next_phase,
     parse_sub_agent_result,
 )
 from agentic_sdlc.gates import run_gateset
@@ -32,6 +31,11 @@ from agentic_sdlc.ledger import Ledger, LedgerEvent
 from agentic_sdlc.models import route
 from agentic_sdlc.risk_classifier import RiskClassifier
 from agentic_sdlc.self_heal import HealController
+
+# The phases implemented in the MVP (plan §14). VALIDATE/STAGING/MONITOR are part
+# of the full SDLC order (contracts.PHASE_ORDER) but are added when generalizing
+# past the single-stack MVP, so the orchestrator walks this explicit sequence.
+MVP_PHASES: tuple[Phase, ...] = (Phase.PLAN, Phase.CODE, Phase.TEST, Phase.REVIEW)
 
 ORCHESTRATOR_SYSTEM_PROMPT = (
     "You are the Agentic SDLC orchestrator. You coordinate specialized"
@@ -71,10 +75,9 @@ class Orchestrator:
         and resume-safe). Resumes from the last committed phase if the ledger
         already has progress.
         """
-        resume = self.ledger.last_committed_phase()
-        phase = Phase[resume] if resume else Phase.PLAN
+        start = self._resume_index()
         with self.caffeine:
-            while phase in (Phase.CODE, Phase.TEST, Phase.REVIEW) or phase is Phase.PLAN:
+            for phase in MVP_PHASES[start:]:
                 self.caffeine.heartbeat()
                 outcome = await self._run_phase(phase, request, now=now)
                 self._commit(phase, outcome, now=now)
@@ -84,8 +87,21 @@ class Orchestrator:
                     return Phase.BUDGET_EXHAUSTED
                 if phase is Phase.REVIEW and outcome.decision == "auto_merge":
                     return Phase.DONE
-                phase = next_phase(phase)
             return Phase.DONE
+
+    def _resume_index(self) -> int:
+        """Index into MVP_PHASES to resume from (0 if no/unknown prior progress)."""
+        resume = self.ledger.last_committed_phase()
+        if not resume:
+            return 0
+        try:
+            return MVP_PHASES.index(Phase[resume])
+        except (KeyError, ValueError):
+            return 0  # terminal/unknown state -> start over (fail safe)
+
+    def _next_mvp(self, phase: Phase) -> Phase:
+        idx = MVP_PHASES.index(phase)
+        return MVP_PHASES[idx + 1] if idx + 1 < len(MVP_PHASES) else Phase.DONE
 
     # -- phase execution ---------------------------------------------------
 
@@ -220,7 +236,7 @@ class Orchestrator:
                 to_state=(
                     Phase.DONE.value
                     if outcome.decision == "auto_merge"
-                    else next_phase(phase).value
+                    else self._next_mvp(phase).value
                     if outcome.decision == "advance"
                     else Phase.ESCALATED.value
                 ),
