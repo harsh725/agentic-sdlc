@@ -13,6 +13,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 
 @dataclass
 class GateSpec:
@@ -46,6 +48,15 @@ class GateRunReport:
 
     def failures(self) -> list[GateResult]:
         return [r for r in self.results if r.blocking and not r.passed]
+
+
+def load_gateset(path: Path | str) -> list[GateSpec]:
+    """Load gate specs from a YAML file (``gates:`` list of name/cmd/blocking)."""
+    data = yaml.safe_load(Path(path).read_text()) or {}
+    return [
+        GateSpec(name=g["name"], cmd=g["cmd"], blocking=g.get("blocking", True))
+        for g in data.get("gates", [])
+    ]
 
 
 def run_gate(spec: GateSpec, cwd: Path | str = ".", timeout: int = 1800) -> GateResult:

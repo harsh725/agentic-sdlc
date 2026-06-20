@@ -20,10 +20,13 @@ dependencies = [
 # The live orchestrator needs the Claude Agent SDK (and the Claude Code CLI at
 # runtime). The deterministic spine and tests do not.
 orchestrator = ["claude-agent-sdk>=0.1.0"]
+# The local MCP server (used inside interactive Claude Code, no API key).
+mcp = ["mcp>=1.2"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
 agentic-sdlc = "agentic_sdlc.cli:main"
+agentic-sdlc-mcp = "agentic_sdlc.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/harsh725/agentic-sdlc"

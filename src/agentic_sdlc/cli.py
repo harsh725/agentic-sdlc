@@ -1,18 +1,24 @@
 """Command-line entry point.
 
-``agentic-sdlc demo``  — run the deterministic spine offline (no API key) so the
-                        gates -> risk -> confidence -> decision pipeline can be
-                        demonstrated and trusted in isolation.
-``agentic-sdlc run``   — drive a real feature through the orchestrator (needs the
-                        ``orchestrator`` extra + ANTHROPIC_API_KEY).
+``agentic-sdlc demo``    — run the deterministic spine offline (no API key).
+``agentic-sdlc gate``    — run the gates for a repo; print JSON.
+``agentic-sdlc risk``    — classify changed files as LOW/HIGH risk; print JSON.
+``agentic-sdlc decide``  — auto-merge vs escalate verdict; print JSON.
+``agentic-sdlc run``     — drive a feature through the orchestrator (needs the
+                          ``orchestrator`` extra + ANTHROPIC_API_KEY).
+
+The demo/gate/risk/decide commands are pure and need no API key — they back the
+``/sdlc-*`` skills and the local MCP server used inside Claude Code.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from agentic_sdlc.confidence import ConfidenceInputs, compute_confidence, should_auto_merge
 from agentic_sdlc.contracts import RiskLevel
@@ -112,22 +118,93 @@ def _run(args: argparse.Namespace) -> int:
     return 0 if terminal.value in ("DONE", "ESCALATED") else 1
 
 
+def _emit(payload: object) -> int:
+    """Print a JSON payload (machine-readable for skills/agents) and return 0."""
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def _read_diff(args: argparse.Namespace) -> str:
+    if getattr(args, "diff_file", None):
+        return Path(args.diff_file).read_text()
+    return ""
+
+
+def _gate(args: argparse.Namespace) -> int:
+    from agentic_sdlc import service
+
+    return _emit(service.run_gates(args.repo, args.gateset))
+
+
+def _risk(args: argparse.Namespace) -> int:
+    from agentic_sdlc import service
+
+    return _emit(service.classify_risk(args.files, _read_diff(args)))
+
+
+def _decide(args: argparse.Namespace) -> int:
+    from agentic_sdlc import service
+
+    return _emit(
+        service.decide_merge(
+            args.files,
+            repo=args.repo,
+            gateset_path=args.gateset,
+            diff_text=_read_diff(args),
+            reviewer_approve=args.reviewer_approve,
+            reviewer_refute=args.reviewer_refute,
+            reviewer_n=args.reviewer_n,
+            diff_coverage_pct=args.coverage,
+            mutation_total=args.mutation_total,
+            mutation_survived=args.mutation_survived,
+        )
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agentic-sdlc")
     sub = parser.add_subparsers(dest="command", required=True)
+
     sub.add_parser("demo", help="run the deterministic spine offline")
-    run = sub.add_parser("run", help="drive a feature through the orchestrator")
+
+    run = sub.add_parser("run", help="drive a feature through the orchestrator (needs API key)")
     run.add_argument("request", help="the feature request")
     run.add_argument("--repo", default=".", help="path to the host repository")
     run.add_argument("--feature", default="feature", help="feature id (run folder)")
 
+    gate = sub.add_parser("gate", help="run the deterministic gates and print JSON")
+    gate.add_argument("--repo", default=".", help="repo to gate")
+    gate.add_argument("--gateset", default=None, help="path to a gateset.yaml")
+
+    risk = sub.add_parser("risk", help="classify changed files as LOW/HIGH risk (JSON)")
+    risk.add_argument("--files", nargs="+", required=True, help="changed file paths")
+    risk.add_argument("--diff-file", default=None, help="optional path to a diff to scan")
+
+    decide = sub.add_parser("decide", help="auto-merge vs escalate verdict (JSON)")
+    decide.add_argument("--files", nargs="+", required=True, help="changed file paths")
+    decide.add_argument("--repo", default=".", help="repo to gate")
+    decide.add_argument("--gateset", default=None, help="path to a gateset.yaml")
+    decide.add_argument("--diff-file", default=None, help="optional path to a diff to scan")
+    decide.add_argument("--coverage", type=float, default=0.0, help="per-diff coverage %%")
+    decide.add_argument("--reviewer-approve", type=int, default=0)
+    decide.add_argument("--reviewer-refute", type=int, default=0)
+    decide.add_argument("--reviewer-n", type=int, default=0)
+    decide.add_argument("--mutation-total", type=int, default=0)
+    decide.add_argument("--mutation-survived", type=int, default=0)
+
     args = parser.parse_args(argv)
-    if args.command == "demo":
-        return _demo()
-    if args.command == "run":
-        return _run(args)
-    parser.print_help()
-    return 1
+    dispatch = {
+        "demo": lambda _a: _demo(),
+        "run": _run,
+        "gate": _gate,
+        "risk": _risk,
+        "decide": _decide,
+    }
+    handler = dispatch.get(args.command)
+    if handler is None:
+        parser.print_help()
+        return 1
+    return handler(args)
 
 
 if __name__ == "__main__":

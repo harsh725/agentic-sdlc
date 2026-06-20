@@ -11,10 +11,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from agentic_sdlc.confidence import DEFAULT_AUTO_MERGE_THRESHOLD
-from agentic_sdlc.gates import GateSpec
+from agentic_sdlc.gates import GateSpec, load_gateset
 
 DEFAULT_GATESET_PATH = Path("gates/gateset.yaml")
 
@@ -38,12 +36,4 @@ class OrchestratorConfig:
 
     def load_gateset(self, path: Path | str = DEFAULT_GATESET_PATH) -> list[GateSpec]:
         """Load the deterministic gate commands for this stack."""
-        data = yaml.safe_load(Path(path).read_text()) or {}
-        return [
-            GateSpec(
-                name=g["name"],
-                cmd=g["cmd"],
-                blocking=g.get("blocking", True),
-            )
-            for g in data.get("gates", [])
-        ]
+        return load_gateset(path)
